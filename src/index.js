@@ -3,30 +3,50 @@ import ReactDom from 'react-dom';
 import './index.css';
 
 
-function calculateWinner(squares) {
-    const lines = [
-        [0, 1, 2],
-        [3, 4, 5],
-        [6, 7, 8],
-        [0, 3, 6],
-        [1, 4, 7],
-        [2, 5, 8],
-        [0, 4, 8],
-        [2, 4, 6],
-    ];
-    for (let i = 0; i < lines.length; i++) {
-        const [a, b, c] = lines[i];
-        if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-            return {
-                data: squares[a],
-                answer: true
+function calculateWinner(xIsNext, boardSize, valueToWin, squares, i) {
+    const player = (xIsNext) ? "X" : "O";
+    for(let k = 0; k < 4; k++) {
+        let position = i;
+        let intermecheckingTheValueToWin = 0;
+        let multiplier = 1;
+        let step = 0;
+        let signRevers = 1;
+        let limit = 0;
+        let flag = true;
+        while(intermecheckingTheValueToWin < valueToWin) {
+            step = -(boardSize + 1) * signRevers;
+            if(k === 0 && position + step >= limit && flag) {
+                position += step * multiplier;
+                if(squares[position] === player) {
+                    intermecheckingTheValueToWin++;
+                    multiplier++;
+                    continue;
+                } else {
+                    signRevers = -1;
+                    multiplier = 1;
+                    limit = boardSize *boardSize - 1;
+                    position = i;
+                    flag = !flag;
+                };
+            };
+            if(k === 0 && position + step <= limit && !flag) {
+                position += step * multiplier;
+                if(squares[position] === player) {
+                    intermecheckingTheValueToWin++;
+                    multiplier++;
+                    continue;
+                } else {
+                    break;
+                };
+            } else {
+                break;
             }
-        }
+        };
+        if(intermecheckingTheValueToWin === valueToWin) {
+            return player;
+        };
     };
-    return {
-        data: null,
-        answer:false
-    };
+    return null;
 }
   
 
@@ -47,8 +67,11 @@ class Board extends React.Component {
                 /> );
     }
     
-    render() {
-        return (
+    render() { // ************ Переделать на JSX. Родной ты на паре осознал, что передаются дивы в ОБЪЕКТАХ!!! ***************
+        
+
+
+        /* return (
             <div>
                 <div className="board-row">
                     {this.renderSquare(0)}
@@ -66,7 +89,23 @@ class Board extends React.Component {
                     {this.renderSquare(8)}
                 </div>
             </div>
-        );
+        ); */
+        
+        const arr_answer = [];
+        let summand = 0;
+        let arr_row = [];
+        for(let m = 0; m < this.props.boardSize * this.props.boardSize; m++) {
+            arr_row[m + summand] = this.renderSquare(m + summand);
+            //console.log(arr_row);
+            if((m + 1) % this.props.boardSize === 0) {
+                summand += m + 1;
+                arr_row = [];
+                arr_answer.push(React.createElement('div', {className : 'board-row'}, ...arr_row));
+                //console.log(arr_answer);
+            };
+        };
+        const board = React.createElement('div', null, ...arr_answer);
+        return board;
     }
 }
 
@@ -74,9 +113,16 @@ class Board extends React.Component {
 class Game extends React.Component {
     constructor(props) {
         super(props);
+        this.boardSize = 5;
+        this.quantityToWin = 4;
+        this.winnerIs = {
+            answer: false,
+            data: null,
+            lastWinner: null
+        };
         this.state = {
             history: [{
-                squares: Array(9).fill(null),
+                squares: Array(this.boardSize * this.boardSize).fill(null),
             }],
             stepNumber: 0,
             xIsNext: true,
@@ -84,10 +130,16 @@ class Game extends React.Component {
     }
 
     handleClick(i) {
-        const history = this.state.history.slice(0, this.state.stepNumber + 1); ///////////////////////////////////
+        const history = this.state.history.slice(0, this.state.stepNumber + 1);
         const current = history[history.length - 1];
         const squares = current.squares.slice();
-        if(calculateWinner(squares).answer || squares[i]) {
+        const winner = (!this.winnerIs.answer) ? calculateWinner(this.state.xIsNext, this.boardSize, this.quantityToWin, squares, i) : null;
+        if(squares[i]) {
+            return;
+        } else if(winner) {
+            this.winnerIs.answer = true;
+            this.winnerIs.data = winner;
+        } else {
             return;
         };
         squares[i] = this.state.xIsNext ? 'X' : "O";
@@ -101,6 +153,13 @@ class Game extends React.Component {
     }
 
     jumpTo(step) {
+        if(step !== this.winnerIs.lastWinner) {
+            this.winnerIs.answer = false;
+            this.winnerIs.data = null;
+        } else {
+            this.winnerIs.answer = true;
+            this.winnerIs.data = this.winnerIs.lastWinner;
+        };
         this.setState({
             stepNumber: step,
             xIsNext: (step % 2) === 0,
@@ -110,8 +169,7 @@ class Game extends React.Component {
     render() {
         const history = this.state.history;
         const current = history[this.state.stepNumber];
-        const winner = calculateWinner(current.squares);
-
+        this.winnerIs.lastWinner = (this.winnerIs.answer) ? this.winnerIs.data : null; // ******* Возможно перенести *******
         const moves = history.map((step, move) => {
             const desc = move ? "Перейти к ходу #" + move : 'К началу игры';
             return (
@@ -120,10 +178,9 @@ class Game extends React.Component {
                 </li>
             );
         });
-
         let status;
-        if(winner.answer) {
-            status = 'Выиграл ' + winner.data;
+        if(this.winnerIs.answer) {
+            status = 'Выиграл ' + this.winnerIs.data;
         } else {
             status = 'Следующий ход: ' + (this.xIsNext ? "X" : "O");
         };
@@ -133,6 +190,7 @@ class Game extends React.Component {
                     <Board
                         squares = {current.squares}
                         onClick = {(i) => this.handleClick(i)}
+                        boardSize = {this.boardSize = 5}
                     />
                 </div>
                 <div className="game-info">
